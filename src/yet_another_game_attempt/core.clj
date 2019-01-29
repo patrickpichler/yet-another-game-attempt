@@ -1,6 +1,7 @@
 (ns yet-another-game-attempt.core
   (:require [quil.core :as q]
-            [quil.middleware :as m]))
+            [quil.middleware :as m]
+            [yet-another-game-attempt.middleware :refer [show-frame-rate]]))
 
 (defn setup []
   ; Set frame rate to 30 frames per second.
@@ -9,29 +10,34 @@
   (q/color-mode :hsb)
   ; setup function returns initial state. It contains
   ; circle color and position.
-  {:color 0
-   :angle 0})
+  {:world {:elements '()}
+   :time (q/millis)})
 
-(defn update-state [state]
-  ; Update sketch state by changing circle color and position.
-  {:color (mod (+ (:color state) 0.7) 255)
-   :angle (+ (:angle state) 0.1)})
+(defn apply-gravity [delta element]
+  (update-in element [1] inc))
 
-(defn draw-state [state]
+(defn update-world [delta world]
+  (update-in world [:elements] #(map (partial apply-gravity delta) %1)))
+
+(defn update-state [{last-update :time world :world :as state}]
+  (let [now (q/millis)
+        delta (- now last-update) ]
+    (assoc state :time now
+                 :world (update-world delta world))))
+
+(defn draw-circle [[x y]]
+  (q/fill 255)
+  (q/ellipse x y 100 100))
+
+(defn draw-state [{{elements :elements} :world :as state}]
   ; Clear the sketch by filling it with light-grey color.
   (q/background 240)
-  ; Set circle color.
-  (q/fill (:color state) 255 255)
-  ; Calculate x and y coordinates of the circle.
-  (let [angle (:angle state)
-        x (* 150 (q/cos angle))
-        y (* 150 (q/sin angle))]
-    ; Move origin point to the center of the sketch.
-    (q/with-translation [(/ (q/width) 2)
-                         (/ (q/height) 2)]
-      ; Draw the circle.
-      (q/ellipse x y 100 100))))
+  (doall (map draw-circle (reverse elements))))
 
+(defn mouse-pressed [state {button :button x :x y :y :as event}]
+  (if (= button :left)
+    (update-in state [:world :elements] #(conj %1 (vector x y)))
+    state))
 
 (q/defsketch yet-another-game-attempt
   :title "You spin my circle right round"
@@ -41,8 +47,10 @@
   ; update-state is called on each iteration before draw-state.
   :update update-state
   :draw draw-state
-  :features [:keep-on-top]
+  :mouse-pressed mouse-pressed
+  :features [:keep-on-top :resizable]
+  :display 2
   ; This sketch uses functional-mode middleware.
   ; Check quil wiki for more info about middlewares and particularly
   ; fun-mode.
-  :middleware [m/fun-mode])
+  :middleware [m/fun-mode show-frame-rate])

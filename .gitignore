@@ -40,3 +40,4 @@ pom.xml.asc
 .nrepl-port
 .cpcache/
 tags
+.lsp
